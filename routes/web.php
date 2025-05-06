@@ -18,7 +18,7 @@ use App\Http\Controllers\StokController;
 Auth::routes();
 
 // Route untuk halaman home
-// Route::get('/home', [HomeController::class, 'index'])->name('home');
+Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 // Route resource untuk ObatController
 
