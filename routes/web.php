@@ -10,6 +10,7 @@ use App\Http\Controllers\LaporanStokMasukController;
 use App\Http\Controllers\ObatKeluarController;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\StokController;
+use App\Http\Controllers\LaporanController;
 
 // Route untuk halaman utama
 
@@ -53,7 +54,9 @@ Route::middleware(['auth', 'ceklevel:admin,user'])->group(function () {
     Route::get('/laporan/stok-masuk', [LaporanStokMasukController::class, 'index'])->name('laporan.stok_masuk');
     Route::get('/laporan-stok-masuk', [ObatMasukController::class, 'laporanStokMasuk'])->name('laporan-stok-masuk.index');
 
-
+    Route::post('/kasir/tambah', [KasirController::class, 'tambah'])->name('kasir.tambah');
+    Route::delete('/kasir/hapus/{id}', [KasirController::class, 'hapus'])->name('kasir.hapus');
+    Route::get('/kasir/total', [KasirController::class, 'total'])->name('kasir.total');
 
 });
 
@@ -87,3 +90,7 @@ Route::middleware(['auth'])->group(function () {
 
 // Midtrans notification
 Route::post('/payment/notification', [KasirController::class, 'notification'])->name('payment.notification');
+
+// Laporan Routes
+Route::get('/laporan-penjualan', [LaporanController::class, 'penjualan'])->name('laporan.penjualan');
+Route::get('/laporan-penjualan/export-pdf', [LaporanController::class, 'exportPDF'])->name('laporan.export-pdf');

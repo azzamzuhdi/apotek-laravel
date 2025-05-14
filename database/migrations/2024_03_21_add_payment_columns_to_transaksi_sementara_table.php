@@ -9,9 +9,9 @@ return new class extends Migration
     public function up()
     {
         Schema::table('transaksi_sementara', function (Blueprint $table) {
-            $table->string('order_id')->nullable();
-            $table->string('payment_method')->default('cash');
-            $table->string('snap_token')->nullable();
+            $table->string('order_id')->nullable()->after('subtotal');
+            $table->string('payment_method')->default('cash')->after('order_id');
+            $table->string('snap_token')->nullable()->after('payment_method');
         });
     }
 

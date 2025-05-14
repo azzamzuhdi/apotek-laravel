@@ -12,6 +12,7 @@ use App\Models\Obat;
 use Illuminate\Support\Facades\DB;
 use Midtrans\Config;
 use Midtrans\Snap;
+use Carbon\Carbon;
 
 class KasirController extends Controller
 {
@@ -31,6 +32,10 @@ class KasirController extends Controller
     {
         $obat = Obat::all();
         $transaksi = TransaksiSementara::all();
+        
+        // Debug information
+        \Log::info('Transaksi data:', ['transaksi' => $transaksi->toArray()]);
+        
         return view('layouts.kasir', compact('obat', 'transaksi'));
     }
 
@@ -39,16 +44,25 @@ class KasirController extends Controller
         try {
             $request->validate([
                 'nama_obat' => 'required',
-                'jumlah' => 'required|numeric|min:1',
-                'harga' => 'required|numeric|min:0'
+                'jumlah' => 'required|numeric|min:1'
             ]);
 
-            $subtotal = $request->jumlah * $request->harga;
+            $obat = Obat::where('nama_obat', $request->nama_obat)->first();
+            
+            if (!$obat) {
+                return response()->json(['success' => false, 'message' => 'Obat tidak ditemukan']);
+            }
+
+            if ($obat->stok < $request->jumlah) {
+                return response()->json(['success' => false, 'message' => 'Stok tidak mencukupi']);
+            }
+
+            $subtotal = $obat->harga_jual * $request->jumlah;
 
             TransaksiSementara::create([
                 'nama_obat' => $request->nama_obat,
                 'jumlah' => $request->jumlah,
-                'harga' => $request->harga,
+                'harga' => $obat->harga_jual,
                 'subtotal' => $subtotal
             ]);
 
@@ -61,9 +75,12 @@ class KasirController extends Controller
     public function hapus($id)
     {
         try {
-            $transaksi = TransaksiSementara::findOrFail($id);
-            $transaksi->delete();
-            return response()->json(['success' => true]);
+            $transaksi = TransaksiSementara::find($id);
+            if ($transaksi) {
+                $transaksi->delete();
+                return response()->json(['success' => true]);
+            }
+            return response()->json(['success' => false, 'message' => 'Transaksi tidak ditemukan']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -71,143 +88,191 @@ class KasirController extends Controller
 
     public function total()
     {
-        $total = TransaksiSementara::sum('subtotal');
-        return response()->json(['total' => $total]);
+        try {
+            $total = TransaksiSementara::sum('subtotal');
+            return response()->json(['total' => $total]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 
     public function proses(Request $request)
     {
         try {
+            DB::beginTransaction();
+
             $request->validate([
-                'total_belanja' => 'required|numeric|min:0',
+                'total_belanja' => 'required|numeric',
                 'payment_method' => 'required|in:cash,midtrans'
             ]);
 
             $transaksi = TransaksiSementara::all();
             
             if ($transaksi->isEmpty()) {
-                return response()->json(['success' => false, 'message' => 'Tidak ada item dalam keranjang']);
+                throw new \Exception('Tidak ada item dalam keranjang');
             }
 
             if ($request->payment_method === 'cash') {
                 $request->validate([
-                    'uang_pembayaran' => 'required|numeric|min:' . $request->total_belanja
+                    'uang_pembayaran' => 'required|numeric|min:' . $request->total_belanja,
+                    'kembalian' => 'required|numeric'
                 ]);
 
-                $kembalian = $request->uang_pembayaran - $request->total_belanja;
+                $detail_obat = $transaksi->map(function($item) {
+                    return [
+                        'nama_obat' => $item->nama_obat,
+                        'jumlah' => $item->jumlah,
+                        'harga' => $item->harga,
+                        'subtotal' => $item->subtotal
+                    ];
+                })->toArray();
 
-                // Buat transaksi final
-                $transaksiFinal = TransaksiFinal::create([
+                // Simpan ke transaksi final
+                TransaksiFinal::create([
                     'total_belanja' => $request->total_belanja,
                     'uang_pembayaran' => $request->uang_pembayaran,
-                    'kembalian' => $kembalian,
-                    'detail_obat' => $transaksi->toArray(),
+                    'kembalian' => $request->kembalian,
+                    'detail_obat' => $detail_obat,
                     'payment_method' => 'cash',
-                    'transaction_status' => 'success'
+                    'transaction_status' => 'settlement'
                 ]);
+
+                // Update stok obat
+                foreach ($transaksi as $item) {
+                    $obat = Obat::where('nama_obat', $item->nama_obat)->first();
+                    if ($obat) {
+                        if ($obat->stok < $item->jumlah) {
+                            throw new \Exception('Stok ' . $item->nama_obat . ' tidak mencukupi');
+                        }
+                        $obat->stok -= $item->jumlah;
+                        $obat->save();
+                    }
+                }
 
                 // Hapus transaksi sementara
                 TransaksiSementara::truncate();
 
+                DB::commit();
                 return response()->json(['success' => true]);
             } else {
                 // Proses pembayaran Midtrans
-                $orderId = 'ORDER-' . time();
-                $customerDetails = [
-                    'first_name' => 'Customer',
-                    'email' => 'customer@example.com',
-                    'phone' => '08123456789'
-                ];
-
-                $transactionDetails = [
-                    'order_id' => $orderId,
-                    'gross_amount' => (int) $request->total_belanja
-                ];
-
-                $itemDetails = $transaksi->map(function ($item) {
+                $detail_obat = $transaksi->map(function($item) {
                     return [
-                        'id' => $item->id,
-                        'price' => (int) $item->harga,
-                        'quantity' => (int) $item->jumlah,
-                        'name' => $item->nama_obat
+                        'nama_obat' => $item->nama_obat,
+                        'jumlah' => $item->jumlah,
+                        'harga' => $item->harga,
+                        'subtotal' => $item->subtotal
                     ];
                 })->toArray();
 
-                $params = [
-                    'transaction_details' => $transactionDetails,
-                    'customer_details' => $customerDetails,
-                    'item_details' => $itemDetails
-                ];
+                // Generate order ID
+                $order_id = 'ORDER-' . time();
 
-                // Dapatkan Snap Token
-                $snapToken = Snap::getSnapToken($params);
+                // Simpan ke transaksi final
+                TransaksiFinal::create([
+                    'total_belanja' => $request->total_belanja,
+                    'detail_obat' => $detail_obat,
+                    'payment_method' => 'midtrans',
+                    'order_id' => $order_id,
+                    'transaction_status' => 'pending',
+                    'uang_pembayaran' => $request->total_belanja,
+                    'kembalian' => 0
+                ]);
 
-                // Update transaksi sementara dengan order_id dan snap_token
+                // Update transaksi sementara dengan order ID
                 foreach ($transaksi as $item) {
                     $item->update([
-                        'order_id' => $orderId,
-                        'payment_method' => 'midtrans',
-                        'snap_token' => $snapToken
+                        'order_id' => $order_id,
+                        'payment_method' => 'midtrans'
                     ]);
                 }
 
+                // Parameter untuk Midtrans
+                $params = [
+                    'transaction_details' => [
+                        'order_id' => $order_id,
+                        'gross_amount' => (int) $request->total_belanja
+                    ],
+                    'customer_details' => [
+                        'first_name' => 'Customer',
+                        'email' => 'customer@example.com',
+                        'phone' => '08123456789'
+                    ],
+                    'item_details' => array_map(function($item) {
+                        return [
+                            'id' => $item['nama_obat'],
+                            'price' => $item['harga'],
+                            'quantity' => $item['jumlah'],
+                            'name' => $item['nama_obat']
+                        ];
+                    }, $detail_obat)
+                ];
+
+                $snapToken = Snap::getSnapToken($params);
+                
+                DB::commit();
                 return response()->json([
                     'success' => true,
                     'snap_token' => $snapToken
                 ]);
             }
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
         }
     }
 
     public function notification(Request $request)
     {
-        $notif = new \Midtrans\Notification();
-        
-        $transaction = $notif->transaction_status;
-        $type = $notif->payment_type;
-        $orderId = $notif->order_id;
-        $fraud = $notif->fraud_status;
+        try {
+            DB::beginTransaction();
 
-        if ($transaction == 'capture') {
-            if ($type == 'credit_card') {
-                if($fraud == 'challenge') {
-                    $status = 'challenge';
-                } else {
-                    $status = 'success';
+            $payload = $request->all();
+            $order_id = $payload['order_id'];
+            $transaction_status = $payload['transaction_status'];
+            $fraud_status = $payload['fraud_status'];
+
+            $transaksi = TransaksiFinal::where('order_id', $order_id)->first();
+            
+            if ($transaksi) {
+                $transaksi->update([
+                    'transaction_status' => $transaction_status,
+                    'transaction_id' => $payload['transaction_id'],
+                    'uang_pembayaran' => $transaksi->total_belanja,
+                    'kembalian' => 0
+                ]);
+
+                if ($transaction_status == 'capture' || $transaction_status == 'settlement') {
+                    // Update stok obat
+                    $detail_obat = $transaksi->detail_obat;
+                    foreach ($detail_obat as $item) {
+                        $obat = Obat::where('nama_obat', $item['nama_obat'])->first();
+                        if ($obat) {
+                            if ($obat->stok < $item['jumlah']) {
+                                throw new \Exception('Stok ' . $item['nama_obat'] . ' tidak mencukupi');
+                            }
+                            $obat->stok -= $item['jumlah'];
+                            $obat->save();
+                        }
+                    }
+
+                    // Hapus transaksi sementara
+                    TransaksiSementara::where('order_id', $order_id)->delete();
                 }
             }
-        } else if ($transaction == 'settlement') {
-            $status = 'success';
-        } else if ($transaction == 'pending') {
-            $status = 'pending';
-        } else if ($transaction == 'deny') {
-            $status = 'denied';
-        } else if ($transaction == 'expire') {
-            $status = 'expired';
-        } else if ($transaction == 'cancel') {
-            $status = 'canceled';
-        }
 
-        // Update transaksi final
-        $transaksiSementara = TransaksiSementara::where('order_id', $orderId)->get();
-        
-        if ($transaksiSementara->isNotEmpty()) {
-            TransaksiFinal::create([
-                'total_belanja' => $transaksiSementara->sum('subtotal'),
-                'detail_obat' => $transaksiSementara->toArray(),
-                'payment_method' => 'midtrans',
-                'order_id' => $orderId,
-                'transaction_status' => $status,
-                'transaction_id' => $notif->transaction_id
+            DB::commit();
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
             ]);
-
-            // Hapus transaksi sementara
-            TransaksiSementara::where('order_id', $orderId)->delete();
         }
-
-        return response()->json(['success' => true]);
     }
 
     public function laporanPenjualan(Request $request)
@@ -222,9 +287,29 @@ class KasirController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        $laporan = $query->orderBy('created_at', 'desc')->get();
+        // Filter berdasarkan metode pembayaran jika ada
+        if ($request->payment_method) {
+            $query->where('payment_method', $request->payment_method);
+        }
 
-        return view('laporan.penjualan', compact('laporan'));
+        // Filter berdasarkan status transaksi jika ada
+        if ($request->transaction_status) {
+            $query->where('transaction_status', $request->transaction_status);
+        }
+
+        // Hitung total penjualan dan jumlah transaksi sebelum pagination
+        $totalPenjualan = (float) $query->sum('total_belanja');
+        $jumlahTransaksi = (int) $query->count();
+
+        // Urutkan berdasarkan tanggal terbaru dan paginate
+        $transaksi = $query->orderBy('created_at', 'desc')
+                          ->paginate(10);
+
+        return view('laporan.penjualan', [
+            'transaksi' => $transaksi,
+            'totalPenjualan' => $totalPenjualan,
+            'jumlahTransaksi' => $jumlahTransaksi
+        ]);
     }
 
     public function eksporPDF(Request $request)

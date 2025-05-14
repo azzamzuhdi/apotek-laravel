@@ -6,6 +6,26 @@
         <h3 class="box-title">Kasir</h3>
     </div>
     <div class="box-body">
+        <!-- Form Tambah Item -->
+        <form id="form-tambah" class="form-inline mb-3">
+            @csrf
+            <div class="form-group mx-sm-3">
+                <select name="nama_obat" id="nama_obat" class="form-control" required>
+                    <option value="">Pilih Obat</option>
+                    @foreach($obat as $o)
+                        <option value="{{ $o->nama_obat }}" data-stok="{{ $o->stok }}" data-harga="{{ $o->harga_jual }}">
+                            {{ $o->nama_obat }} (Stok: {{ $o->stok }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="form-group mx-sm-3">
+                <input type="number" name="jumlah" id="jumlah" class="form-control" placeholder="Jumlah" min="1" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Tambah</button>
+        </form>
+
+        <!-- Tabel Keranjang -->
         <table class="table table-bordered">
             <thead>
                 <tr>
@@ -14,6 +34,7 @@
                     <th>Jumlah</th>
                     <th>Harga Satuan</th>
                     <th>Subtotal</th>
+                    <th>Aksi</th>
                 </tr>
             </thead>
             <tbody>
@@ -24,10 +45,17 @@
                     <td>{{ $item->jumlah }}</td>
                     <td>Rp {{ number_format($item->harga, 2, ',', '.') }}</td>
                     <td>Rp {{ number_format($item->subtotal, 2, ',', '.') }}</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm btn-hapus" data-id="{{ $item->id }}">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </td>
                 </tr>
                 @endforeach
             </tbody>
         </table>
+
+        <!-- Form Pembayaran -->
         <form id="kasir-form">
             @csrf
             <div class="form-group">
@@ -73,6 +101,66 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Form Tambah Item
+    const formTambah = document.getElementById('form-tambah');
+    formTambah.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        
+        fetch('{{ route('kasir.tambah') }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                nama_obat: formData.get('nama_obat'),
+                jumlah: formData.get('jumlah')
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.message || 'Terjadi kesalahan');
+            }
+        })
+        .catch(error => {
+            console.error(error);
+            alert('Terjadi kesalahan, silakan coba lagi.');
+        });
+    });
+
+    // Tombol Hapus Item
+    document.querySelectorAll('.btn-hapus').forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.dataset.id;
+            
+            fetch(`{{ url('kasir/hapus') }}/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Terjadi kesalahan');
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                alert('Terjadi kesalahan, silakan coba lagi.');
+            });
+        });
+    });
+
+    // Proses Transaksi
     const uangPembayaran = document.getElementById('uang_pembayaran');
     const totalBelanja = {{ $transaksi->sum('subtotal') }};
     const kembalian = document.getElementById('kembalian');
