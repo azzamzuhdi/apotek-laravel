@@ -66,3 +66,24 @@ Route::middleware(['auth', 'ceklevel:admin'])->group(function () {
     Route::get('/kasir/create', [KasirController::class, 'create'])->name('kasir.create');
     Route::post('/kasir/store', [KasirController::class, 'store'])->name('kasir.store');
 });
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/payment', function () {
+        return view('payment.index');
+    })->name('payment.index');
+    
+    Route::get('/payment/success', function () {
+        return view('payment.success');
+    })->name('payment.success');
+    
+    Route::get('/payment/pending', function () {
+        return view('payment.pending');
+    })->name('payment.pending');
+    
+    Route::get('/payment/failed', function () {
+        return view('payment.failed');
+    })->name('payment.failed');
+});
+
+// Midtrans notification
+Route::post('/payment/notification', [KasirController::class, 'notification'])->name('payment.notification');
