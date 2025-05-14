@@ -44,10 +44,8 @@ Route::middleware(['auth', 'ceklevel:admin,user'])->group(function () {
     Route::get('/laporan/stok-masuk', [StokController::class, 'laporanStokMasuk'])->name('laporan.stokMasuk');
     Route::post('/tambah-stok-masuk', [StokController::class, 'tambahStokMasuk'])->name('stok.tambahMasuk');
 
-    Route::get('/obat-masuk', [ObatController::class, 'indexObatMasuk'])->name('obat-masuk.index');
-    Route::post('/obat-masuk/store', [ObatController::class, 'storeObatMasuk'])->name('obat-masuk.store');
-    Route::post('/obat-masuk/proses', [ObatController::class, 'prosesObatMasuk'])->name('obat-masuk.proses');
-
+    Route::get('/obat-masuk', [ObatMasukController::class, 'index'])->name('obat-masuk.index');
+    Route::post('/obat-masuk/store', [ObatMasukController::class, 'store'])->name('obat-masuk.store');
     Route::post('/obat-masuk/proses', [ObatMasukController::class, 'proses'])->name('obat-masuk.proses');
 
     Route::get('/laporan/stok-masuk', [LaporanStokMasukController::class, 'index'])->name('laporan.stok_masuk');
