@@ -1,4 +1,3 @@
-
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -17,16 +16,11 @@ use App\Http\Controllers\StokController;
 
 // Route untuk autentikasi
 Auth::routes();
-
-// Route untuk halaman home
 Route::get('/home', [HomeController::class, 'index'])->name('home');
-
-// Route resource untuk ObatController
-
 Route::post('/logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])->name('logout');
 Route::post('/login', [App\Http\Controllers\Auth\LoginController::class, 'login'])->name('login');
 
-Route::middleware(['auth', 'ceklevel:admin,user'])->group(function () {
+Route::middleware(['auth', 'ceklevel:admin,user,kasir'])->group(function () {
     Route::get('/', [WebController::class, 'index']);
     Route::resource('obat', ObatController::class);
     Route::get('/obat/create', [ObatController::class, 'create'])->name('obat.create');
@@ -64,4 +58,11 @@ Route::middleware(['auth', 'ceklevel:admin'])->group(function () {
     Route::get('/laporanKasir', [WebController::class, 'laporanKasir']);
     Route::get('/kasir/create', [KasirController::class, 'create'])->name('kasir.create');
     Route::post('/kasir/store', [KasirController::class, 'store'])->name('kasir.store');
+});
+
+Route::middleware(['auth', 'ceklevel:kasir'])->group(function () {
+    Route::get('/kasir', [KasirController::class, 'index'])->name('kasir.index');
+    Route::post('/kasir/proses', [KasirController::class, 'proses'])->name('kasir.proses');
+    Route::get('/laporan-penjualan', [KasirController::class, 'laporanPenjualan'])->name('laporan.penjualan');
+    Route::get('/laporan-penjualan-pdf', [KasirController::class, 'eksporPDF'])->name('laporan.penjualan.pdf');
 });

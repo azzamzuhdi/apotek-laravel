@@ -76,76 +76,68 @@
 
         <!-- Left side column. contains the sidebar -->
 
-        <aside class="main-sidebar">
-            <!-- sidebar: style can be found in sidebar.less -->
-            <section class="sidebar">
-                <!-- Sidebar user panel -->
-                <div class="user-panel">
-                    <div class="pull-left image">
-                        <img src="../../dist/img/avatar.png" class="img-circle" alt="User Image">
-                    </div>
-                    <div class="pull-left info">
-                        <p>Admin</p>
-                        <a href="#"><i class="fa fa-circle text-success"></i> Online</a>
-                    </div>
-                </div>
-                <!-- search form -->
-                <form action="#" method="get" class="sidebar-form">
-                </form>
-                <!-- /.search form -->
-                <!-- sidebar menu: : style can be found in sidebar.less -->
-                <ul class="sidebar-menu" data-widget="tree">
-                    <li class="treeview">
-                        <a href="#">
-                            <i class="fa fa-plus-circle"></i> <span>Stok</span>
-                            <span class="pull-right-container">
-                                <i class="fa fa-angle-left pull-right"></i>
-                            </span>
-                        </a>
+       <aside class="main-sidebar">
+    <section class="sidebar">
+        <!-- Sidebar user panel -->
+        <div class="user-panel">
+            <div class="pull-left image">
+                <img src="../../dist/img/avatar.png" class="img-circle" alt="User Image">
+            </div>
+            <div class="pull-left info">
+                <p>{{ ucfirst(auth()->user()->level) }}</p>
+                <a href="#"><i class="fa fa-circle text-success"></i> Online</a>
+            </div>
+        </div>
 
-                        <ul class="treeview-menu active">
-                            <li><a href="{{ route('obat-masuk.index') }}"><i class="fa fa-circle-o"></i>Obat Masuk</a>
-                            </li>
-                            <li><a href="{{ route('laporan.obat-keluar') }}"><i class="fa fa-circle-o"></i> Obat
-                                    Keluar</a></li>
-                        </ul>
-                    </li>
-                    <li class="treeview">
-                        <a href="{{ route('obat.index') }}">
-                            <i class="fa fa-money"></i>
-                            <span>Data Obat</span>
-                        </a>
-                    </li>
-                    <li class="treeview">
-                        @if (auth()->user()->level == 'admin')
-                            <a href="{{ route('kasir.index') }}">
-                                <i class="fa fa-money"></i>
-                                <span>Kasir</span>
-                            </a>
-                    </li>
-                    <li class="treeview">
-                        <a href="#">
-                            <i class="fa fa-book"></i> <span>Laporan</span>
-                            <span class="pull-right-container">
-                                <i class="fa fa-angle-left pull-right"></i>
-                            </span>
-                        </a>
+        <!-- sidebar menu -->
+        <ul class="sidebar-menu" data-widget="tree">
+            @if (auth()->user()->level == 'admin' || auth()->user()->level == 'user')
+                <li class="treeview">
+                    <a href="#">
+                        <i class="fa fa-plus-circle"></i> <span>Stok</span>
+                        <span class="pull-right-container">
+                            <i class="fa fa-angle-left pull-right"></i>
+                        </span>
+                    </a>
+                    <ul class="treeview-menu active">
+                        <li><a href="{{ route('obat-masuk.index') }}"><i class="fa fa-circle-o"></i> Obat Masuk</a></li>
+                        <li><a href="{{ route('laporan.obat-keluar') }}"><i class="fa fa-circle-o"></i> Obat Keluar</a></li>
+                    </ul>
+                </li>
 
-                        <ul class="treeview-menu active">
-                            <li><a href="/laporan-stok-masuk"><i class="fa fa-circle-o"></i> Laporan Stok</a></li>
-                            <li><a href="{{ route('laporan.penjualan') }}"><i class="fa fa-circle-o"></i>Laporan
-                                    Penjualan</a></li>
-                        </ul>
-                    </li>
+                <li class="treeview">
+                    <a href="{{ route('obat.index') }}">
+                        <i class="fa fa-medkit"></i> <span>Data Obat</span>
+                    </a>
+                </li>
+            @endif
 
-                    {{-- <li><a href="/laporan"><i class="fa fa-book"></i> <span>Laporan
-                                Transaksi</span></a>
-                    </li> --}}
-                    @endif
-                </ul>
-            </section>
-            <!-- /.sidebar -->
-        </aside>
+            @if (auth()->user()->level == 'kasir')
+                <li class="treeview">
+                    <a href="{{ route('kasir.index') }}">
+                        <i class="fa fa-shopping-cart"></i> <span>Kasir</span>
+                    </a>
+                </li>
+            @endif
+
+            @if (auth()->user()->level == 'admin')
+                <li class="treeview">
+                    <a href="#">
+                        <i class="fa fa-book"></i> <span>Laporan</span>
+                        <span class="pull-right-container">
+                            <i class="fa fa-angle-left pull-right"></i>
+                        </span>
+                    </a>
+                    <ul class="treeview-menu active">
+                        <li><a href="/laporan-stok-masuk"><i class="fa fa-circle-o"></i> Laporan Stok</a></li>
+                        <li><a href="{{ route('laporan.penjualan') }}"><i class="fa fa-circle-o"></i> Laporan Penjualan</a></li>
+                    </ul>
+                </li>
+            @endif
+        </ul>
+    </section>
+</aside>
+
 
         <!-- =============================================== -->
 
